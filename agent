@@ -1,0 +1,178 @@
+from zipfile import ZipFile
+import os
+
+base = "/mnt/data/cpp_ai_agent"
+
+files = {
+"main.py": """from llm import LLM
+from memory import Memory
+from router import Router
+
+from agents.code_agent import CodeAgent
+from agents.debug_agent import DebugAgent
+from agents.learning_agent import LearningAgent
+
+
+class AgentSystem:
+
+    def __init__(self):
+        self.llm = LLM()
+        self.memory = Memory()
+        self.router = Router()
+
+        self.agents = {
+            "code": CodeAgent(self.llm, self.memory),
+            "debug": DebugAgent(self.llm, self.memory),
+            "learn": LearningAgent(self.llm, self.memory),
+        }
+
+    def run(self, task: str):
+        agent_type = self.router.route(task)
+        agent = self.agents[agent_type]
+
+        print(f\"[Router] -> {agent_type} agent selected\\n\")
+        return agent.run(task)
+
+
+if __name__ == \"__main__\":
+    system = AgentSystem()
+
+    while True:
+        task = input(\"\\n>>> \")
+        result = system.run(task)
+        print(\"\\n\" + \"=\"*40)
+        print(result)
+        print(\"=\"*40)
+""",
+
+"llm.py": """class LLM:
+    def __init__(self, model=\"gpt-4o-mini\"):
+        self.model = model
+
+    def chat(self, prompt: str) -> str:
+        # placeholder (no real API key)
+        return f\"[MOCK RESPONSE]\\n{prompt[:500]}\"
+""",
+
+"memory.py": """class Memory:
+    def __init__(self):
+        self.store = []
+
+    def add(self, item: str):
+        self.store.append(item)
+
+    def search(self, query: str):
+        return [x for x in self.store if query.lower() in x.lower()]
+""",
+
+"router.py": """class Router:
+
+    def route(self, text: str):
+        text = text.lower()
+
+        if \"error\" in text or \"segfault\" in text:
+            return \"debug\"
+
+        if \"学习\" in text or \"plan\" in text:
+            return \"learn\"
+
+        return \"code\"
+""",
+
+"agents/base.py": """class BaseAgent:
+    def __init__(self, llm, memory):
+        self.llm = llm
+        self.memory = memory
+
+    def run(self, task: str):
+        raise NotImplementedError
+""",
+
+"agents/code_agent.py": """from agents.base import BaseAgent
+
+class CodeAgent(BaseAgent):
+
+    def run(self, task: str):
+        context = \"\\n\".join(self.memory.search(\"cpp\"))[:2000]
+
+        prompt = f\"\"\"
+你是C++源码分析专家。
+
+任务：
+{task}
+
+上下文：
+{context}
+
+分析：
+1. 结构
+2. bug
+3. STL机制
+4. 优化
+\"\"\"
+
+        result = self.llm.chat(prompt)
+        self.memory.add(\"code:\" + result)
+        return result
+""",
+
+"agents/debug_agent.py": """from agents.base import BaseAgent
+
+class DebugAgent(BaseAgent):
+
+    def run(self, task: str):
+
+        prompt = f\"\"\"
+C++调试专家：
+
+错误：
+{task}
+
+请定位：
+- 根因
+- 模板/内存问题
+- 修复代码
+\"\"\"
+
+        result = self.llm.chat(prompt)
+        self.memory.add(\"debug:\" + result)
+        return result
+""",
+
+"agents/learning_agent.py": """from agents.base import BaseAgent
+
+class LearningAgent(BaseAgent):
+
+    def run(self, task: str):
+
+        prompt = f\"\"\"
+学习规划：
+
+目标：
+{task}
+
+输出：
+1. 路径
+2. 知识拆解
+3. 练习建议
+\"\"\"
+
+        result = self.llm.chat(prompt)
+        self.memory.add(\"learn:\" + result)
+        return result
+"""
+}
+
+# create dirs
+for path in files:
+    full = os.path.join(base, path)
+    os.makedirs(os.path.dirname(full), exist_ok=True)
+    with open(full, "w", encoding="utf-8") as f:
+        f.write(files[path])
+
+zip_path = "/mnt/data/cpp_ai_agent.zip"
+with ZipFile(zip_path, "w") as z:
+    for path in files:
+        z.write(os.path.join(base, path), arcname=path)
+
+zip_path
